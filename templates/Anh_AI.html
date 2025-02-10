@@ -212,6 +212,35 @@
           {% endif %}
         </tbody>
       </table>
+      
+      <!-- Danh sách đánh giá -->
+      <h3 class="text-center mt-5">Danh sách đánh giá</h3>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>STT</th>
+            <th>Tên tài khoản</th>
+            <th>Điểm</th>
+            <th>Thời gian đánh giá</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if evaluations %}
+            {% for evaluation in evaluations %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ evaluation.username }}</td>
+                <td>{{ evaluation.score }}</td>
+                <td>{{ evaluation.created_at }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="4" class="text-center">Chưa có đánh giá nào.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
 
     {% elif page == 'admin_edit' %}
       <!-- Form chỉnh sửa điểm cho admin -->
