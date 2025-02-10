@@ -3,7 +3,7 @@ import sqlite3
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Thay đổi key này theo nhu cầu của bạn
+app.secret_key = 'your_secret_key_here'  # Thay đổi key này cho phù hợp
 
 # Đường dẫn đến file cơ sở dữ liệu SQLite (lưu trong thư mục /tmp để phù hợp với Vercel)
 DATABASE = '/tmp/data.db'
@@ -21,17 +21,27 @@ def get_db():
 
 def init_db():
     """
-    Khởi tạo cơ sở dữ liệu: tạo bảng users nếu chưa tồn tại
-    và đảm bảo rằng tài khoản admin (huankn1) tồn tại.
+    Khởi tạo cơ sở dữ liệu: tạo bảng users và evaluations nếu chưa tồn tại,
+    đảm bảo rằng tài khoản admin (huankn1) tồn tại.
     """
     db = get_db()
     cursor = db.cursor()
+    # Tạo bảng users
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
             password TEXT NOT NULL,
             score REAL,
             attempts INTEGER NOT NULL
+        )
+    ''')
+    # Tạo bảng evaluations để lưu lịch sử đánh giá
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS evaluations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            score REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     # Kiểm tra và tạo tài khoản admin nếu chưa có
@@ -136,8 +146,11 @@ def index():
             if selection == "yes":
                 total_score += item["points"]
         new_attempts = user['attempts'] - 1
+        # Cập nhật điểm và lượt đánh giá trong bảng users
         cursor.execute("UPDATE users SET score = ?, attempts = ? WHERE username = ?", 
                        (total_score, new_attempts, username))
+        # --- Phần mới: Lưu lịch sử đánh giá vào bảng evaluations ---
+        cursor.execute("INSERT INTO evaluations (username, score) VALUES (?, ?)", (username, total_score))
         db.commit()
         flash("Đánh giá của bạn đã được lưu.", "success")
         return redirect(url_for('index'))
@@ -159,6 +172,7 @@ def admin_panel():
         return redirect(url_for('login'))
     db = get_db()
     cursor = db.cursor()
+    # Lấy thông tin của các tài khoản (không bao gồm admin)
     cursor.execute("SELECT * FROM users WHERE username != ?", ('huankn1',))
     users_rows = cursor.fetchall()
     ranking = []
@@ -171,7 +185,12 @@ def admin_panel():
     ranking.sort(key=lambda x: x['score'], reverse=True)
     for i, item in enumerate(ranking):
         item['rank'] = i + 1
-    return render_template("Anh_AI.html", page="admin", users=user_list, ranking=ranking)
+
+    # --- Phần mới: Lấy danh sách lịch sử đánh giá từ bảng evaluations ---
+    cursor.execute("SELECT * FROM evaluations ORDER BY created_at DESC")
+    evaluations = cursor.fetchall()
+
+    return render_template("Anh_AI.html", page="admin", users=user_list, ranking=ranking, evaluations=evaluations)
 
 # ------------------------
 # ROUTE: ADMIN RESET – mở lại lượt cho tài khoản
