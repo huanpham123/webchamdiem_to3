@@ -182,11 +182,13 @@
                 <a href="{{ url_for('admin_reset', username=user.username) }}" class="btn btn-sm btn-warning">Reset lượt</a>
                 <a href="{{ url_for('admin_edit', username=user.username) }}" class="btn btn-sm btn-info">Sửa điểm</a>
                 <a href="{{ url_for('admin_delete', username=user.username) }}" class="btn btn-sm btn-danger" onclick="return confirm('Bạn có chắc muốn xóa điểm của tài khoản này không?');">Xóa điểm</a>
+                <a href="{{ url_for('admin_delete_account', username=user.username) }}" class="btn btn-sm btn-danger" onclick="return confirm('Bạn có chắc muốn xóa tài khoản này không?');">Xóa tài khoản</a>
               </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
+      
       <h3 class="text-center mt-5">Bảng xếp hạng</h3>
       <table class="table table-striped">
         <thead>
