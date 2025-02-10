@@ -5,8 +5,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Thay đổi key này theo nhu cầu của bạn
 
-# Đường dẫn đến file cơ sở dữ liệu SQLite (data.db sẽ được tạo ở cùng thư mục với app.py)
-DATABASE = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data.db')
+# Đường dẫn đến file cơ sở dữ liệu SQLite (lưu trong thư mục /tmp để phù hợp với Vercel)
+DATABASE = '/tmp/data.db'
 
 def get_db():
     """
