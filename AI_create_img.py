@@ -3,15 +3,15 @@ import sqlite3
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Thay đổi key này cho phù hợp
+app.secret_key = 'your_secret_key_here'  # Hãy thay đổi giá trị này cho phù hợp với môi trường của bạn
 
 # Đường dẫn đến file cơ sở dữ liệu SQLite (lưu trong thư mục /tmp để phù hợp với Vercel)
 DATABASE = '/tmp/data.db'
 
 def get_db():
     """
-    Trả về đối tượng kết nối đến cơ sở dữ liệu SQLite,
-    sử dụng row_factory để có thể truy cập theo tên cột.
+    Trả về đối tượng kết nối đến cơ sở dữ liệu SQLite.
+    Sử dụng row_factory để truy cập theo tên cột.
     """
     db = getattr(g, '_database', None)
     if db is None:
@@ -21,8 +21,10 @@ def get_db():
 
 def init_db():
     """
-    Khởi tạo cơ sở dữ liệu: tạo bảng users và evaluations nếu chưa tồn tại,
-    đảm bảo rằng tài khoản admin (huankn1) tồn tại.
+    Khởi tạo cơ sở dữ liệu:
+      - Tạo bảng users (nếu chưa tồn tại)
+      - Tạo bảng evaluations để lưu lịch sử đánh giá
+      - Tạo tài khoản admin (huankn1) nếu chưa tồn tại
     """
     db = get_db()
     cursor = db.cursor()
@@ -48,7 +50,7 @@ def init_db():
     cursor.execute("SELECT * FROM users WHERE username = ?", ('huankn1',))
     admin = cursor.fetchone()
     if not admin:
-        # Tài khoản admin có lượt làm được biểu diễn bằng -1 (vô hạn)
+        # Tài khoản admin có lượt làm vô hạn (được biểu diễn bằng -1)
         cursor.execute("INSERT INTO users (username, password, score, attempts) VALUES (?, ?, ?, ?)",
                        ('huankn1', '30082008', None, -1))
     db.commit()
@@ -57,7 +59,6 @@ def init_db():
 def before_request_func():
     """
     Đảm bảo cơ sở dữ liệu được khởi tạo trước mỗi request.
-    Điều này hữu ích trong môi trường serverless (VD: Vercel).
     """
     init_db()
 
@@ -149,16 +150,13 @@ def index():
         # Cập nhật điểm và lượt đánh giá trong bảng users
         cursor.execute("UPDATE users SET score = ?, attempts = ? WHERE username = ?", 
                        (total_score, new_attempts, username))
-        # --- Phần mới: Lưu lịch sử đánh giá vào bảng evaluations ---
+        # Lưu lịch sử đánh giá vào bảng evaluations
         cursor.execute("INSERT INTO evaluations (username, score) VALUES (?, ?)", (username, total_score))
         db.commit()
         flash("Đánh giá của bạn đã được lưu.", "success")
         return redirect(url_for('index'))
     cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
     user = cursor.fetchone()
-    if user is None:
-        flash("Không tìm thấy thông tin tài khoản. Vui lòng đăng nhập lại.", "danger")
-        return redirect(url_for('logout'))
     return render_template("Anh_AI.html", page="user", username=username, criteria=criteria,
                            total_score=user['score'], attempts=user['attempts'])
 
@@ -186,14 +184,14 @@ def admin_panel():
     for i, item in enumerate(ranking):
         item['rank'] = i + 1
 
-    # --- Phần mới: Lấy danh sách lịch sử đánh giá từ bảng evaluations ---
+    # Lấy danh sách lịch sử đánh giá từ bảng evaluations
     cursor.execute("SELECT * FROM evaluations ORDER BY created_at DESC")
     evaluations = cursor.fetchall()
 
     return render_template("Anh_AI.html", page="admin", users=user_list, ranking=ranking, evaluations=evaluations)
 
 # ------------------------
-# ROUTE: ADMIN RESET – mở lại lượt cho tài khoản
+# ROUTE: ADMIN RESET – Mở lại lượt cho tài khoản
 # ------------------------
 @app.route('/admin/reset/<username>')
 def admin_reset(username):
@@ -211,7 +209,7 @@ def admin_reset(username):
     return redirect(url_for('admin_panel'))
 
 # ------------------------
-# ROUTE: ADMIN DELETE – xóa điểm của tài khoản
+# ROUTE: ADMIN DELETE – Xóa điểm của tài khoản (không xóa tài khoản)
 # ------------------------
 @app.route('/admin/delete/<username>')
 def admin_delete(username):
@@ -229,7 +227,7 @@ def admin_delete(username):
     return redirect(url_for('admin_panel'))
 
 # ------------------------
-# ROUTE: ADMIN EDIT – chỉnh sửa điểm của tài khoản
+# ROUTE: ADMIN EDIT – Chỉnh sửa điểm của tài khoản
 # ------------------------
 @app.route('/admin/edit/<username>', methods=['GET', 'POST'])
 def admin_edit(username):
@@ -254,6 +252,27 @@ def admin_edit(username):
     row = cursor.fetchone()
     current_score = row['score'] if row else None
     return render_template("Anh_AI.html", page="admin_edit", edit_username=username, current_score=current_score)
+
+# ------------------------
+# ROUTE: ADMIN DELETE ACCOUNT – Xóa tài khoản hoàn toàn (chỉ admin mới có thể xóa)
+# ------------------------
+@app.route('/admin/delete_account/<username>')
+def admin_delete_account(username):
+    if 'username' not in session or session['username'] != 'huankn1':
+        flash("Truy cập không hợp lệ.", "danger")
+        return redirect(url_for('login'))
+    if username == 'huankn1':
+        flash("Không thể xóa tài khoản admin.", "warning")
+    else:
+        db = get_db()
+        cursor = db.cursor()
+        # Xóa tài khoản khỏi bảng users
+        cursor.execute("DELETE FROM users WHERE username = ?", (username,))
+        # Xóa luôn các bản ghi đánh giá của tài khoản này trong bảng evaluations (nếu có)
+        cursor.execute("DELETE FROM evaluations WHERE username = ?", (username,))
+        db.commit()
+        flash(f"Đã xóa tài khoản {username}.", "success")
+    return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
     with app.app_context():
