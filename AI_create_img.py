@@ -4,10 +4,15 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Thay đổi key này theo nhu cầu của bạn
-DATABASE = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'data.db')
+
+# Đường dẫn đến file cơ sở dữ liệu SQLite (data.db sẽ được tạo ở cùng thư mục với app.py)
+DATABASE = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data.db')
 
 def get_db():
-    """Trả về đối tượng kết nối đến cơ sở dữ liệu, thiết lập row_factory để sử dụng tên cột."""
+    """
+    Trả về đối tượng kết nối đến cơ sở dữ liệu SQLite,
+    sử dụng row_factory để có thể truy cập theo tên cột.
+    """
     db = getattr(g, '_database', None)
     if db is None:
         db = g._database = sqlite3.connect(DATABASE)
@@ -15,7 +20,10 @@ def get_db():
     return db
 
 def init_db():
-    """Khởi tạo cơ sở dữ liệu, tạo bảng users nếu chưa có và đảm bảo tài khoản admin tồn tại."""
+    """
+    Khởi tạo cơ sở dữ liệu: tạo bảng users nếu chưa tồn tại
+    và đảm bảo rằng tài khoản admin (huankn1) tồn tại.
+    """
     db = get_db()
     cursor = db.cursor()
     cursor.execute('''
@@ -30,19 +38,27 @@ def init_db():
     cursor.execute("SELECT * FROM users WHERE username = ?", ('huankn1',))
     admin = cursor.fetchone()
     if not admin:
-        # Ở đây, admin có lượt làm được biểu diễn bằng giá trị -1 (vô hạn)
+        # Tài khoản admin có lượt làm được biểu diễn bằng -1 (vô hạn)
         cursor.execute("INSERT INTO users (username, password, score, attempts) VALUES (?, ?, ?, ?)",
                        ('huankn1', '30082008', None, -1))
     db.commit()
 
+@app.before_request
+def before_request_func():
+    """
+    Đảm bảo cơ sở dữ liệu được khởi tạo trước mỗi request.
+    Điều này hữu ích trong môi trường serverless (VD: Vercel).
+    """
+    init_db()
+
 @app.teardown_appcontext
 def close_connection(exception):
-    """Đóng kết nối cơ sở dữ liệu khi kết thúc app context."""
+    """Đóng kết nối đến cơ sở dữ liệu khi kết thúc app context."""
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
 
-# Danh sách tiêu chí chấm điểm (không thay đổi)
+# Danh sách tiêu chí chấm điểm
 criteria = [
     {"id": "criteria1", "name": "Tham gia hoạt động", "points": 5},
     {"id": "criteria2", "name": "Đóng góp quỹ", "points": 1},
@@ -125,7 +141,6 @@ def index():
         db.commit()
         flash("Đánh giá của bạn đã được lưu.", "success")
         return redirect(url_for('index'))
-    # Làm mới thông tin người dùng sau khi xử lý POST
     cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
     user = cursor.fetchone()
     if user is None:
@@ -221,7 +236,6 @@ def admin_edit(username):
     current_score = row['score'] if row else None
     return render_template("Anh_AI.html", page="admin_edit", edit_username=username, current_score=current_score)
 
-# Khởi tạo cơ sở dữ liệu khi chạy ứng dụng (chỉ chạy trong môi trường local)
 if __name__ == '__main__':
     with app.app_context():
         init_db()
